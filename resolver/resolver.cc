@@ -287,7 +287,7 @@ private:
         if (resolved.exists() && resolved.data(ctx)->isTypeAlias()) {
             if (resolved.data(ctx)->resultType == nullptr) {
                 // This is actually a use-site error, but we limit ourselves to emitting it once by checking resultType
-                auto loc = resolved.data(ctx)->loc();
+                auto loc = resolved.loc(ctx);
                 if (auto e = ctx.state.beginError(loc, core::errors::Resolver::RecursiveTypeAlias)) {
                     e.setHeader("Unable to resolve right hand side of type alias `{}`", resolved.show(ctx));
                     e.addErrorLine(core::Loc(ctx.file, job.out->original.loc()), "Type alias used here");
@@ -358,8 +358,8 @@ private:
                         vector<core::ErrorLine> lines;
                         for (auto suggestion : suggested) {
                             const auto replacement = suggestion.symbol.show(ctx);
-                            lines.emplace_back(core::ErrorLine::from(suggestion.symbol.data(ctx)->loc(),
-                                                                     "Did you mean: `{}`?", replacement));
+                            lines.emplace_back(
+                                core::ErrorLine::from(suggestion.symbol.loc(ctx), "Did you mean: `{}`?", replacement));
                             e.replaceWith(fmt::format("Replace with `{}`", replacement),
                                           core::Loc(ctx.file, job.out->loc), "{}", replacement);
                         }
@@ -442,8 +442,7 @@ private:
             if (rhsData->dealias(ctx) != it.lhs) {
                 it.lhs.data(ctx)->resultType = core::make_type<core::AliasType>(rhsSym);
             } else {
-                if (auto e =
-                        ctx.state.beginError(it.lhs.data(ctx)->loc(), core::errors::Resolver::RecursiveClassAlias)) {
+                if (auto e = ctx.state.beginError(it.lhs.loc(ctx), core::errors::Resolver::RecursiveClassAlias)) {
                     e.setHeader("Class alias aliases to itself");
                 }
                 it.lhs.data(ctx)->resultType = core::Types::untypedUntracked();
@@ -626,7 +625,7 @@ private:
 
             // Get the fake property holding the mixes
             auto mixMethod = owner.data(gs)->findMember(gs, core::Names::mixedInClassMethods());
-            auto loc = core::Loc(owner.data(gs)->loc().file(), send->loc);
+            auto loc = core::Loc(owner.loc(gs).file(), send->loc);
             if (!mixMethod.exists()) {
                 // We never stored a mixin in this symbol
                 // Create a the fake property that will hold the mixed in modules
@@ -1376,7 +1375,7 @@ class ResolveTypeMembersAndFieldsWalk {
                 // Declaring a class instance variable
             } else if (job.atTopLevel && ctx.owner.name(ctx) == core::Names::initialize()) {
                 // Declaring a instance variable
-            } else if (ctx.owner.data(ctx)->isMethod() && ctx.owner.data(ctx)->owner.data(ctx)->isSingletonClass(ctx) &&
+            } else if (ctx.owner.data(ctx)->isMethod() && ctx.owner.owner(ctx).data(ctx)->isSingletonClass(ctx) &&
                        !core::Types::isSubType(ctx, core::Types::nilClass(), cast->type)) {
                 // Declaring a class instance variable in a static method
                 if (auto e = ctx.beginError(uid->loc, core::errors::Resolver::InvalidDeclareVariables)) {
@@ -1403,7 +1402,7 @@ class ResolveTypeMembersAndFieldsWalk {
             } else {
                 // We do some normalization here to ensure that the file / line we report the error on doesn't
                 // depend on the order that we traverse files nor the order we traverse within a file.
-                auto priorLoc = prior.data(ctx)->loc();
+                auto priorLoc = prior.loc(ctx);
                 core::Loc reportOn;
                 core::Loc errorLine;
                 core::Loc thisLoc = core::Loc(job.file, uid->loc);
@@ -1536,7 +1535,7 @@ class ResolveTypeMembersAndFieldsWalk {
             } else if (auto e = ctx.beginError(rhs->loc, core::errors::Resolver::ParentTypeBoundsMismatch)) {
                 const auto parentShow = parentMember.show(ctx);
                 e.setHeader("`{}` is a type member but `{}` is not a type member", lhs.show(ctx), parentShow);
-                e.addErrorLine(parentMember.data(ctx)->loc(), "`{}` definition", parentShow);
+                e.addErrorLine(parentMember.loc(ctx), "`{}` definition", parentShow);
             }
         }
 
@@ -1976,7 +1975,7 @@ class ResolveTypeMembersAndFieldsWalk {
         if (!current.isClassOrModule()) {
             if (auto e = ctx.beginError(stringLoc, core::errors::Resolver::LazyResolve)) {
                 e.setHeader("The string given to `{}` must resolve to a class or module", method);
-                e.addErrorLine(current.data(ctx)->loc(), "Resolved to this constant");
+                e.addErrorLine(current.loc(ctx), "Resolved to this constant");
             }
             return;
         }
@@ -2271,7 +2270,7 @@ public:
             ENFORCE(send->fun == core::Names::typeAlias() || send->fun == core::Names::typeMember() ||
                     send->fun == core::Names::typeTemplate());
 
-            auto owner = sym.data(ctx)->owner;
+            auto owner = sym.owner(ctx);
 
             dependencies_.emplace_back(owner.data(ctx)->superClass());
 

@@ -79,7 +79,7 @@ public:
             while (current.data(gs)->isOverloaded()) {
                 i++;
                 auto overloadName = gs.lookupNameUnique(core::UniqueNameKind::Overload, methodName, i);
-                auto overload = primaryMethod.data(gs)->owner.data(gs)->findMember(gs, overloadName);
+                auto overload = primaryMethod.owner(gs).data(gs)->findMember(gs, overloadName);
                 ENFORCE(overload.exists());
                 ENFORCE(overload.isMethod());
 

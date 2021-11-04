@@ -208,9 +208,8 @@ private:
         if (!sym.exists()) {
             return false;
         }
-        auto data = sym.data(ctx);
-        if (data->isTypeAlias()) {
-            return data->resultType != nullptr;
+        if (sym.isTypeAlias(ctx)) {
+            return sym.asFieldRef().data(ctx)->resultType != nullptr;
         } else {
             return true;
         }
@@ -244,7 +243,7 @@ private:
         }
         if (auto *id = ast::cast_tree<ast::ConstantLit>(c.scope)) {
             auto sym = id->symbol;
-            if (sym.exists() && sym.data(ctx)->isTypeAlias() && !resolutionFailed) {
+            if (sym.exists() && sym.isTypeAlias(ctx) && !resolutionFailed) {
                 if (auto e = ctx.beginError(c.loc, core::errors::Resolver::ConstantInTypeAlias)) {
                     e.setHeader("Resolving constants through type aliases is not supported");
                 }
@@ -284,7 +283,7 @@ private:
         auto &original = ast::cast_tree_nonnull<ast::UnresolvedConstantLit>(job.out->original);
 
         auto resolved = resolveConstant(ctx.withOwner(job.scope->scope), job.scope, original, job.resolutionFailed);
-        if (resolved.exists() && resolved.data(ctx)->isTypeAlias()) {
+        if (resolved.exists() && resolved.isTypeAlias(ctx)) {
             if (resolved.data(ctx)->resultType == nullptr) {
                 // This is actually a use-site error, but we limit ourselves to emitting it once by checking resultType
                 auto loc = resolved.loc(ctx);
@@ -379,7 +378,7 @@ private:
         if (!resolved.exists()) {
             return false;
         }
-        if (resolved.data(ctx)->isTypeAlias()) {
+        if (resolved.isTypeAlias(ctx)) {
             if (resolved.data(ctx)->resultType != nullptr) {
                 job.out->symbol = resolved;
                 return true;
@@ -426,11 +425,10 @@ private:
             return false;
         }
 
-        auto rhsData = rhsSym.data(ctx);
-        if (rhsData->isTypeAlias()) {
+        if (rhsSym.isTypeAlias(ctx)) {
             if (auto e = ctx.beginError(it.rhs->loc, core::errors::Resolver::ReassignsTypeAlias)) {
                 e.setHeader("Reassigning a type alias is not allowed");
-                e.addErrorLine(rhsData->loc(), "Originally defined here");
+                e.addErrorLine(rhsSym.loc(ctx), "Originally defined here");
                 auto rhsLoc = core::Loc{ctx.file, it.rhs->loc};
                 if (rhsLoc.exists()) {
                     e.replaceWith("Declare as type alias", rhsLoc, "T.type_alias {{{}}}", rhsLoc.source(ctx).value());
@@ -439,7 +437,7 @@ private:
             it.lhs.data(ctx)->resultType = core::Types::untypedUntracked();
             return true;
         } else {
-            if (rhsData->dealias(ctx) != it.lhs) {
+            if (rhsSym.data(ctx)->dealias(ctx) != it.lhs) {
                 it.lhs.data(ctx)->resultType = core::make_type<core::AliasType>(rhsSym);
             } else {
                 if (auto e = ctx.state.beginError(it.lhs.loc(ctx), core::errors::Resolver::RecursiveClassAlias)) {
@@ -491,7 +489,7 @@ private:
         core::ClassOrModuleRef resolvedClass;
         {
             core::SymbolRef resolved;
-            if (ancestorSym.data(ctx)->isTypeAlias()) {
+            if (ancestorSym.isTypeAlias(ctx)) {
                 if (!lastRun) {
                     return false;
                 }
@@ -745,7 +743,7 @@ private:
 
         if (auto *cnst = ast::cast_tree<ast::ConstantLit>(ancestor)) {
             auto sym = cnst->symbol;
-            if (sym.exists() && sym.data(ctx)->isTypeAlias()) {
+            if (sym.exists() && sym.isTypeAlias(ctx)) {
                 if (auto e = ctx.beginError(cnst->loc, core::errors::Resolver::DynamicSuperclass)) {
                     e.setHeader("Superclasses and mixins may not be type aliases");
                 }
@@ -1675,7 +1673,7 @@ class ResolveTypeMembersAndFieldsWalk {
     }
 
     static bool resolveJob(core::MutableContext ctx, ResolveAssignItem &job, vector<bool> &resolvedAttachedClasses) {
-        ENFORCE(job.lhs.data(ctx)->isTypeAlias() || job.lhs.isTypeMember());
+        ENFORCE(job.lhs.isTypeAlias(ctx) || job.lhs.isTypeMember());
 
         if (isLHSResolved(ctx, job.lhs)) {
             return true;
@@ -2106,7 +2104,7 @@ public:
                 if (!symbol.data(ctx)->typeMembers().empty()) {
                     dependencies_.emplace_back(symbol);
                 }
-            } else if (symbol.data(ctx)->isTypeAlias()) {
+            } else if (symbol.isTypeAlias(ctx)) {
                 dependencies_.emplace_back(symbol);
             }
         }

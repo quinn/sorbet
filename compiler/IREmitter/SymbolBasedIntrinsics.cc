@@ -64,7 +64,7 @@ public:
             ENFORCE(methodName.exists());
 
             // We can only reasonably add type assertions for methods that have signatures
-            auto primaryMethod = rubyClass.data(gs)->findMemberTransitive(gs, methodName);
+            auto primaryMethod = rubyClass.data(gs)->findMemberTransitive(gs, methodName).asMethodRef();
             ENFORCE(primaryMethod.exists());
             ENFORCE(primaryMethod.data(gs)->hasSig())
 
@@ -78,7 +78,7 @@ public:
             while (current.data(gs)->isOverloaded()) {
                 i++;
                 auto overloadName = gs.lookupNameUnique(core::UniqueNameKind::Overload, methodName, i);
-                auto overload = primaryMethod.owner(gs).data(gs)->findMember(gs, overloadName).asMethodRef();
+                auto overload = primaryMethod.data(gs)->owner.data(gs)->findMember(gs, overloadName).asMethodRef();
                 ENFORCE(overload.exists());
 
                 if (core::Types::isSubType(gs, intrinsicResultType, overload.data(gs)->resultType)) {

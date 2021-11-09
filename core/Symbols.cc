@@ -540,6 +540,14 @@ SymbolRef Symbol::findMember(const GlobalState &gs, NameRef name) const {
     return ret;
 }
 
+MethodRef Symbol::findMethod(const GlobalState &gs, NameRef name) const {
+    auto sym = findMember(gs, name);
+    if (sym.exists() && sym.isMethod()) {
+        return sym.asMethodRef();
+    }
+    return Symbols::noMethod();
+}
+
 SymbolRef Symbol::findMemberNoDealias(const GlobalState &gs, NameRef name) const {
     histogramInc("find_member_scope_size", members().size());
     auto fnd = members().find(name);
@@ -551,6 +559,14 @@ SymbolRef Symbol::findMemberNoDealias(const GlobalState &gs, NameRef name) const
 
 SymbolRef Symbol::findMemberTransitive(const GlobalState &gs, NameRef name) const {
     return findMemberTransitiveInternal(gs, name, Flags::NONE, Flags::NONE, 100);
+}
+
+MethodRef Symbol::findMethodTransitive(const GlobalState &gs, NameRef name) const {
+    auto sym = findMemberTransitive(gs, name);
+    if (sym.exists() && sym.isMethod()) {
+        return sym.asMethodRef();
+    }
+    return Symbols::noMethod();
 }
 
 SymbolRef Symbol::findConcreteMethodTransitive(const GlobalState &gs, NameRef name) const {
@@ -1506,7 +1522,7 @@ void Symbol::recordSealedSubclass(MutableContext ctx, ClassOrModuleRef subclass)
     // subclassing a sealed class across multiple files, not just one file.
     auto classOfSubclass = subclass.data(ctx)->singletonClass(ctx);
     auto sealedSubclasses =
-        selfRef.data(ctx)->lookupSingletonClass(ctx).data(ctx)->findMember(ctx, core::Names::sealedSubclasses());
+        selfRef.data(ctx)->lookupSingletonClass(ctx).data(ctx)->findMethod(ctx, core::Names::sealedSubclasses());
 
     auto data = sealedSubclasses.data(ctx);
     ENFORCE(data->resultType != nullptr, "Should have been populated in namer");
@@ -1537,7 +1553,7 @@ void Symbol::recordSealedSubclass(MutableContext ctx, ClassOrModuleRef subclass)
 
 const InlinedVector<Loc, 2> &Symbol::sealedLocs(const GlobalState &gs) const {
     ENFORCE(this->isClassOrModuleSealed(), "Class is not marked sealed: {}", ref(gs).show(gs));
-    auto sealedSubclasses = this->lookupSingletonClass(gs).data(gs)->findMember(gs, core::Names::sealedSubclasses());
+    auto sealedSubclasses = this->lookupSingletonClass(gs).data(gs)->findMethod(gs, core::Names::sealedSubclasses());
     auto &result = sealedSubclasses.data(gs)->locs();
     ENFORCE(result.size() > 0);
     return result;
@@ -1546,7 +1562,7 @@ const InlinedVector<Loc, 2> &Symbol::sealedLocs(const GlobalState &gs) const {
 TypePtr Symbol::sealedSubclassesToUnion(const GlobalState &gs) const {
     ENFORCE(this->isClassOrModuleSealed(), "Class is not marked sealed: {}", ref(gs).show(gs));
 
-    auto sealedSubclasses = this->lookupSingletonClass(gs).data(gs)->findMember(gs, core::Names::sealedSubclasses());
+    auto sealedSubclasses = this->lookupSingletonClass(gs).data(gs)->findMethod(gs, core::Names::sealedSubclasses());
 
     auto data = sealedSubclasses.data(gs);
     ENFORCE(data->resultType != nullptr, "Should have been populated in namer");
@@ -1582,7 +1598,7 @@ TypePtr Symbol::sealedSubclassesToUnion(const GlobalState &gs) const {
 bool Symbol::hasSingleSealedSubclass(const GlobalState &gs) const {
     ENFORCE(this->isClassOrModuleSealed(), "Class is not marked sealed: {}", ref(gs).show(gs));
 
-    auto sealedSubclasses = this->lookupSingletonClass(gs).data(gs)->findMember(gs, core::Names::sealedSubclasses());
+    auto sealedSubclasses = this->lookupSingletonClass(gs).data(gs)->findMethod(gs, core::Names::sealedSubclasses());
 
     // When the sealed type is a class, it must also be abstract for there to be a single subclass.
     if (this->isClassOrModuleClass() && !this->isClassOrModuleAbstract()) {

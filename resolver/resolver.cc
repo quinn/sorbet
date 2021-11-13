@@ -284,14 +284,15 @@ private:
 
         auto resolved = resolveConstant(ctx.withOwner(job.scope->scope), job.scope, original, job.resolutionFailed);
         if (resolved.exists() && resolved.isTypeAlias(ctx)) {
-            if (resolved.data(ctx)->resultType == nullptr) {
+            auto resolvedField = resolved.asFieldRef();
+            if (resolvedField.data(ctx)->resultType == nullptr) {
                 // This is actually a use-site error, but we limit ourselves to emitting it once by checking resultType
-                auto loc = resolved.loc(ctx);
+                auto loc = resolvedField.data(ctx)->loc();
                 if (auto e = ctx.state.beginError(loc, core::errors::Resolver::RecursiveTypeAlias)) {
                     e.setHeader("Unable to resolve right hand side of type alias `{}`", resolved.show(ctx));
                     e.addErrorLine(core::Loc(ctx.file, job.out->original.loc()), "Type alias used here");
                 }
-                resolved.data(ctx)->resultType =
+                resolvedField.data(ctx)->resultType =
                     core::Types::untyped(ctx, resolved); // <<-- This is the reason this takes a MutableContext
             }
             job.out->symbol = resolved;
@@ -379,7 +380,8 @@ private:
             return false;
         }
         if (resolved.isTypeAlias(ctx)) {
-            if (resolved.data(ctx)->resultType != nullptr) {
+            auto resolvedField = resolved.asFieldRef();
+            if (resolvedField.data(ctx)->resultType != nullptr) {
                 job.out->symbol = resolved;
                 return true;
             }
@@ -1298,14 +1300,14 @@ class ResolveTypeMembersAndFieldsWalk {
 
     static bool isLHSResolved(core::Context ctx, core::SymbolRef sym) {
         if (sym.isTypeMember()) {
-            auto *lambdaParam = core::cast_type<core::LambdaParam>(sym.data(ctx)->resultType);
+            auto *lambdaParam = core::cast_type<core::LambdaParam>(sym.resultType(ctx));
             ENFORCE(lambdaParam != nullptr);
 
             // both bounds are set to todo in the namer, so it's sufficient to
             // just check one here.
             return !isTodo(lambdaParam->lowerBound);
         } else {
-            return !isTodo(sym.data(ctx)->resultType);
+            return !isTodo(sym.resultType(ctx));
         }
     }
 
@@ -1512,7 +1514,7 @@ class ResolveTypeMembersAndFieldsWalk {
         auto data = lhs.data(ctx);
         auto owner = data->owner;
 
-        core::LambdaParam *parentType = nullptr;
+        const core::LambdaParam *parentType = nullptr;
         core::SymbolRef parentMember = core::Symbols::noSymbol();
         parentMember = owner.data(ctx)->superClass().data(ctx)->findMember(ctx, data->name);
 
@@ -1528,7 +1530,7 @@ class ResolveTypeMembersAndFieldsWalk {
 
         if (parentMember.exists()) {
             if (parentMember.isTypeMember()) {
-                parentType = core::cast_type<core::LambdaParam>(parentMember.data(ctx)->resultType);
+                parentType = core::cast_type<core::LambdaParam>(parentMember.resultType(ctx));
                 ENFORCE(parentType != nullptr);
             } else if (auto e = ctx.beginError(rhs->loc, core::errors::Resolver::ParentTypeBoundsMismatch)) {
                 const auto parentShow = parentMember.show(ctx);
@@ -1636,8 +1638,8 @@ class ResolveTypeMembersAndFieldsWalk {
         if (!attachedClass.exists()) {
             return;
         }
-
-        auto *lambdaParam = core::cast_type<core::LambdaParam>(attachedClass.data(ctx)->resultType);
+        auto attachedClassTypeMember = attachedClass.asTypeMemberRef();
+        auto *lambdaParam = core::cast_type<core::LambdaParam>(attachedClassTypeMember.data(ctx)->resultType);
         ENFORCE(lambdaParam != nullptr);
 
         if (isTodo(lambdaParam->lowerBound)) {
